@@ -42,7 +42,7 @@ class TwistControlNode(DTROS):
                     counter_2 += 1
                 else:
                     self._omega = 0.0
-                    self._v = 0.5
+                    self._v = -0.5
            message = Twist2DStamped(v=self._v, omega=self._omega)
            self._publisher.publish(message)
            rate.sleep()
