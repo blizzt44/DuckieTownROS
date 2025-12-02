@@ -2,6 +2,7 @@
 
 import os
 import rospy
+import math
 from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import WheelEncoderStamped
 
@@ -28,6 +29,10 @@ class WheelEncoderReaderNode(DTROS):
            self.callback_right
        )
 
+
+   
+
+
    def callback_left(self, data):
        rospy.loginfo_once(f"Left encoder resolution: {data.resolution}")
        rospy.loginfo_once(f"Left encoder type: {data.type}")
@@ -40,16 +45,29 @@ class WheelEncoderReaderNode(DTROS):
 
    def run(self):
        rate = rospy.Rate(10)
+       position = (0,0) #x,y
+       axis_length = 10
+       switch_var = True 
+        
        while not rospy.is_shutdown():
-           if self._ticks_left is not None and self._ticks_right is not None:
-               left_motor_pos =  self._ticks_left%137
-               right_motor_pos = self._ticks_right%137
-               msg = (
-                   f"Wheel encoder ticks [LEFT, RIGHT_wheel]: "
-                   f"{left_motor_pos}, {right_motor_pos}"
-               )
-               rospy.loginfo(msg)
-           rate.sleep()
+            if self._ticks_left is not None and self._ticks_right is not None:
+                left_motor_tick =  self._ticks_left%137
+                right_motor_tick = self._ticks_right%137
+                if switch_var:
+                    prev_left_motor_tick = left_motor_tick
+                    prev_right_motor_tick = right_motor_tick
+                else: 
+                    dr = right_motor_tick - prev_right_motor_tick
+                    dl = left_motor_tick - prev_left_motor_tick
+                    d = (dr + dl)/2 
+                    dtheta = (dr-dl)/axis_length
+                    position = (position(0)+d*math.cos(dtheta),position(1)+d*math.sin(dtheta)) 
+                msg = (
+                    f"Wheel encoder ticks [LEFT, RIGHT_wheel]: "
+                    f"{position}"
+                )
+                rospy.loginfo(msg)
+            rate.sleep()
 
 if __name__ == '__main__':
    node = WheelEncoderReaderNode(node_name='wheel_encoder_reader_node')
