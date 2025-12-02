@@ -26,16 +26,29 @@ class TwistControlNode(DTROS):
 
    def run(self):
        rate = rospy.Rate(10)
+       #This was added
        counter = 0
+       counter_2 = 0
+       right_angle = 6 #this works for a pi/2 angle
+       edge_length = 40 #40 is about 1m 
        while not rospy.is_shutdown():
-           if counter > 40:
-               self._v = 0
+           
+           #MPC control  
+
+           if counter > edge_length:
+                self._v = 0.0
+                if counter_2 < right_angle:
+                    self._omega = 4.0
+                    counter_2 += 1
+                else:
+                    self._omega = 0.0
+                    self._v = 0.5
            message = Twist2DStamped(v=self._v, omega=self._omega)
            self._publisher.publish(message)
            rate.sleep()
            counter += 1
            
-           rospy.loginfo(f"Publishing message: '{self._v}'") 
+           rospy.loginfo(f"Publishing message: v = '{self._v}', omega = '{self._omega}'") 
 
 
    def on_shutdown(self):
