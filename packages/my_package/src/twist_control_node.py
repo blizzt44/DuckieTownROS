@@ -51,34 +51,31 @@ class TwistControlNode(DTROS):
        self._ticks_right = data.data
 
    def run(self):
-       rate = rospy.Rate(10)
+       rate = rospy.Rate(20)
        #This was added
-       counter = 0
-       counter_2 = 0
-       right_angle = 6 #this works for a pi/2 angle
-       edge_length = 40 #40 is about 1m 
-       position = (0,0) #x,y
-       axis_length = 10
+       turn_angle = math.pi
+       edge_length = 0.5
+       position = (0,0,0) #x,y
+       axis_length = 0.10
        switch_var = True 
        radius = 0.034
        wheel_circ = radius*2*math.pi
-       Ntot = 137
+       Ntot = 135
        theta = 0
        while not rospy.is_shutdown():
            
            #MPC control  
 
-        #    if counter > edge_length:
-        #         self._v = 0.0
-        #         if counter_2 < right_angle:
-        #             self._omega = 4.0
-        #             counter_2 += 1
-        #         else:
-        #             self._omega = 0.0
-        #             self._v = -0.5
+           if position[0] > edge_length:
+                self._v = 0.0
+                if position[2] < turn_angle:
+                    self._omega = 2.0
+                    
+                else:
+                    self._omega = 0.0
+                    self._v = 0.5
            message = Twist2DStamped(v=self._v, omega=self._omega)
            self._publisher.publish(message)
-           counter += 1
         
            if self._ticks_left is not None and self._ticks_right is not None:
                 left_motor_tick =  self._ticks_left
@@ -98,7 +95,7 @@ class TwistControlNode(DTROS):
                     d = (dr + dl)/2 
                     dtheta = (dr-dl)/axis_length
                     theta += dtheta
-                    position = (position[0]+d*math.cos(theta),position[1]+d*math.sin(theta)) 
+                    position = (position[0]+d*math.cos(theta),position[1]+d*math.sin(theta),theta) 
                     prev_left_motor_tick = left_motor_tick
                     prev_right_motor_tick = right_motor_tick
                 msg = (
