@@ -51,19 +51,26 @@ class WheelEncoderReaderNode(DTROS):
         
        while not rospy.is_shutdown():
             if self._ticks_left is not None and self._ticks_right is not None:
-                left_motor_tick =  self._ticks_left%137
-                right_motor_tick = self._ticks_right%137
+                left_motor_tick =  self._ticks_left
+                right_motor_tick = self._ticks_right
+                radius = 3.4
+                dr = 0
+                dl = 0
+                d = 0
                 if switch_var:
                     prev_left_motor_tick = left_motor_tick
                     prev_right_motor_tick = right_motor_tick
+                    switch_var = False
                 else: 
                     dr = right_motor_tick - prev_right_motor_tick
                     dl = left_motor_tick - prev_left_motor_tick
                     d = (dr + dl)/2 
                     dtheta = (dr-dl)/axis_length
-                    position = (position(0)+d*math.cos(dtheta),position(1)+d*math.sin(dtheta)) 
+                    position = (position[0]+d*math.cos(dtheta),position[1]+d*math.sin(dtheta)) 
+                    prev_left_motor_tick = left_motor_tick
+                    prev_right_motor_tick = right_motor_tick
                 msg = (
-                    f"Wheel encoder ticks [LEFT, RIGHT_wheel]: "
+                    f"Wheel encoder ticks [position]: "
                     f"{position}"
                 )
                 rospy.loginfo(msg)
