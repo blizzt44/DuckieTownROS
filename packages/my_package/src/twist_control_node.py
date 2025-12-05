@@ -4,9 +4,17 @@
 import os
 import rospy
 import math
+import json
 from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import Twist2DStamped
 from duckietown_msgs.msg import WheelEncoderStamped
+from dt_communication_utils import DTCommunicationGroup
+from std_msgs.msg import String
+from dt_communication_utils import DTCommunicationGroup
+
+group = DTCommunicationGroup('my_group', String)
+
+duckies = {}
 
 
 # Twist command parameters
@@ -15,6 +23,7 @@ OMEGA    = 0  # angular rad/s, CCW (+)
 
 
 class TwistControlNode(DTROS):
+   
 
 
    def __init__(self, node_name):
@@ -39,6 +48,9 @@ class TwistControlNode(DTROS):
            WheelEncoderStamped,
            self.callback_right
        )
+       self.subscriber = group.Subscriber(self.callback)
+       self.publisher = group.Publisher()
+       
 
    def callback_left(self, data):
        rospy.loginfo_once(f"Left encoder resolution: {data.resolution}")
@@ -49,6 +61,29 @@ class TwistControlNode(DTROS):
        rospy.loginfo_once(f"Right encoder resolution: {data.resolution}")
        rospy.loginfo_once(f"Right encoder type: {data.type}")
        self._ticks_right = data.data
+       
+   def callback(self,data,header):
+        # 1. Access the raw string data
+        raw_string = data.data 
+
+        # 2. Deserialize the string back into a dictionary
+        try:
+            data_dict = json.loads(raw_string)
+            
+            # 3. Access the values using dictionary keys
+            vehicle_name = data_dict['name']
+            vehicle_position = data_dict['position']
+            
+            rospy.loginfo(f"Received from {vehicle_name}: Position is {vehicle_position}")
+            
+            # Example of using the values:
+            # if vehicle_name == "duckiebot1":
+            #     # Do something with vehicle_position
+            #     ...
+
+        except json.JSONDecodeError as e:
+            rospy.logerr(f"Failed to decode JSON from message: {e}")
+
 
    def run(self):
        rate = rospy.Rate(20)
@@ -98,18 +133,32 @@ class TwistControlNode(DTROS):
                     position = (position[0]+d*math.cos(theta),position[1]+d*math.sin(theta),theta) 
                     prev_left_motor_tick = left_motor_tick
                     prev_right_motor_tick = right_motor_tick
-                msg = (
-                    f"Wheel encoder ticks [position]: "
-                    f"{position}"
-                    f" ,Publishing message: v = '{self._v}', omega = '{self._omega}'"
-                ) 
-                rospy.loginfo(msg)
+
+
+           payload = {
+                "name": self._vehicle_name,
+                "position": position
+            }
+
+            # Dump it to a string and pass it to the 'data' field
+           message_fleet = String(data=json.dumps(payload))
+           self.publisher.publish(message_fleet)
+
+                # msg = (
+                #     f"Wheel encoder ticks [position]: "
+                #     f"{position}"
+                #     f" ,Publishing message: v = '{self._v}', omega = '{self._omega}'"
+                # ) 
+                # rospy.loginfo(msg)
+
+
            rate.sleep()
         
 
    def on_shutdown(self):
        stop = Twist2DStamped(v=0.0, omega=0.0)
        self._publisher.publish(stop)
+       #TODO: Add reset for the motor ticks
 
 
 if __name__ == '__main__':
