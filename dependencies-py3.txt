@@ -2,7 +2,7 @@
 # NOTE: only place non-Duckietown libraries here; pin versions only if necessary
 casadi==3.7.2
 cycler==0.11.0
-dataclasses==0.6
+dataclasses==0.6; python_version < "3.7"
 decorator==4.4.2
 imageio==2.15.0
 jinja2==3.0.3

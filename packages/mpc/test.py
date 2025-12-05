@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+# This file is only testing build, and should be deleted
 
 
 import os
@@ -19,7 +19,7 @@ class MyPublisherNode(DTROS):
        rate = rospy.Rate(1)  # 1 Hz
        message = f"Hello from {self._vehicle_name}!"
        while not rospy.is_shutdown():
-           rospy.loginfo(f"Publishing message: '{message}'")
+           rospy.loginfo(f"Publishing message: '{message}' path: {os.getcwd()}")
            self._publisher.publish(message)
            rate.sleep()
 

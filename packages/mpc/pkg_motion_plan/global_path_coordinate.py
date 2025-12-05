@@ -10,6 +10,7 @@ from basic_map.graph import NetGraph
 from basic_map.map_geometric import GeometricMap
 from basic_map.map_occupancy import OccupancyMap
 from basic_obstacle.geometry_plain import PlainPolygon
+from dataclasses import dataclass
 
 
 PathNode = Tuple[float, float]

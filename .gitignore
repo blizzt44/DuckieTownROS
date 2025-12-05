@@ -1,5 +1,7 @@
 docs/build
 *pyc
+.venv/
+packages/mpc_solver/
 
 # documentation artifacts
 html/*
