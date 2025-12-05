@@ -50,6 +50,7 @@ ENV DT_MODULE_TYPE="${REPO_NAME}" \
     DT_LAUNCH_PATH="${LAUNCH_PATH}" \
     DT_LAUNCHER="${LAUNCHER}"
 
+ENV OPENBLAS_CORETYPE=ARMV8
 # install apt dependencies
 COPY ./dependencies-apt.txt "${REPO_PATH}/"
 RUN dt-apt-install ${REPO_PATH}/dependencies-apt.txt
