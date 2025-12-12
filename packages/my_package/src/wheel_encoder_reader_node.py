@@ -53,7 +53,7 @@ class WheelEncoderReaderNode(DTROS):
             if self._ticks_left is not None and self._ticks_right is not None:
                 left_motor_tick =  self._ticks_left
                 right_motor_tick = self._ticks_right
-                radius = 3.4
+                radius = 0.034
                 dr = 0
                 dl = 0
                 d = 0

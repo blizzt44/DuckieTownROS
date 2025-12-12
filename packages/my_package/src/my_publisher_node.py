@@ -23,8 +23,7 @@ class MyPublisherNode(DTROS):
        while not rospy.is_shutdown():
            rospy.loginfo(f"Publishing message: '{message}'")
            self.publisher.publish(message)
-           rate.sleep()
-
+           rate.sleep()          
 
 if __name__ == '__main__':
    node = MyPublisherNode(node_name='my_publisher_node')
