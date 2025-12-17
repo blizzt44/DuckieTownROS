@@ -3,6 +3,7 @@
 import os
 import rospy
 import math
+import random
 import json
 import numpy as np
 from duckietown.dtros import DTROS, NodeType
@@ -35,6 +36,7 @@ class TwistControlNode(DTROS):
         self._v      = VELOCITY
         self._omega = OMEGA
         self.position = None 
+        self.goal_pose = None
         self._publisher = rospy.Publisher(twist_topic, Twist2DStamped, queue_size=1)
         self._vehicle_name = os.environ['VEHICLE_NAME']
         self._left_encoder_topic = f"/{self._vehicle_name}/left_wheel_encoder_node/tick"
@@ -47,6 +49,10 @@ class TwistControlNode(DTROS):
         self.subscriber = group.Subscriber(self.callback)
         self.publisher = group.Publisher()
         self.fleet_pose = {}
+        self.theta_error_integral = 0.0
+        self.theta_bias = 0.0
+        self.ki = 0.5
+        
 
     def callback_left(self, data):
         self._ticks_left = data.data
@@ -61,6 +67,7 @@ class TwistControlNode(DTROS):
             
             if sender_id != self._vehicle_name and self.position is None:
                 self.position = message_dict.get("init_pose")
+                self.goal_pose = message_dict.get("goal_pose")
 
             if sender_id != self._vehicle_name:
                 fleet = message_dict.get("fleet_pose")
@@ -191,9 +198,145 @@ class TwistControlNode(DTROS):
                 rospy.logerr(f"JSON dump failed: {e}")
 
             rate.sleep()
+    def avoid_control(self):
+        # 1. Determine Opponent
+        if self._vehicle_name == "duck1":
+            opp = "duck2"
+        elif self._vehicle_name == "duck2":
+            opp = "duck1"
+        elif self._vehicle_name == "duck4":
+            opp = "duck2"
+        else:
+            rospy.logwarn("Unknown robot vehicle_name!")
+            return
+
+        # 2. Physics Constants
+        rate = rospy.Rate(20)
+        axis_length = 0.105
+        radius = 0.035
+        wheel_circ = radius * 2 * math.pi
+        Ntot = 135
+        dt = 1.0 / 20.0  # Control step (change this if rate is changed)
+
+        switch_var = True
+
+        # Wait for init_pose
+        while self.position is None and not rospy.is_shutdown():
+            rospy.loginfo_throttle(2, "Waiting for init_pose...")
+            rate.sleep()
+
+        position = self.position
+
+        rospy.loginfo(f"Starting Avoidance PI control against {opp}")
+
+        while not rospy.is_shutdown():
+            if opp in self.fleet_pose and self.fleet_pose[opp] is not None:
+                opp_pose = self.fleet_pose[opp]
+
+                # --- CALCULATE VECTORS ---
+                dx_opp = opp_pose[0] - position[0]
+                dy_opp = opp_pose[1] - position[1]
+                dist_opp = math.sqrt(dx_opp**2 + dy_opp**2)
+                angle_to_opp = math.atan2(dy_opp, dx_opp)
+
+                dx_g = self.goal_pose[0] - position[0]
+                dy_g = self.goal_pose[1] - position[1]
+                dist_goal = math.sqrt(dx_g**2 + dy_g**2)
+
+                avoid_radius = 0.5
+
+                # --- CONTROL LOGIC ---
+                if dist_goal < 0.05:
+                    # Arrived at goal
+                    self._v = 0.0
+                    self._omega = 0.0
+                    self.theta_error_integral = 0.0  # Reset integral
+                elif dist_opp < 0.25:
+                    # Emergency stop / back up
+                    self._v = -0.1
+                    desired_theta = position[2]
+                elif dist_opp < avoid_radius:
+                    # Avoidance mode
+                    self._v = 0.3
+                    cross_prod = dx_opp * dy_g - dy_opp * dx_g
+                    if cross_prod > 0:
+                        desired_theta = angle_to_opp + math.pi / 2
+                    else:
+                        desired_theta = angle_to_opp - math.pi / 2
+                else:
+                    # Normal goal seeking
+                    speed_factor = min(dist_goal, 0.3) / 0.3
+                    self._v = max(0.5 * speed_factor, 0.15)
+                    desired_theta = math.atan2(dy_g, dx_g)
+
+                # --- PI-controller for steering ---
+                if self._v != 0:
+                    theta_error = desired_theta - position[2]
+                    while theta_error > math.pi: theta_error -= 2 * math.pi
+                    while theta_error < -math.pi: theta_error += 2 * math.pi
+
+                    # Update integral
+                    self.theta_error_integral += theta_error * dt
+
+                    # PI control
+                    self._omega = 7.0 * theta_error + 0.5 * self.theta_error_integral
+                    self._omega = max(min(self._omega, 4.0), -4.0)
+                else:
+                    self._omega = 0.0
+
+                # Publish command
+                msg_cmd = Twist2DStamped(v=self._v, omega=self._omega)
+                self._publisher.publish(msg_cmd)
+
+                # --- B. Odometry update ---
+                if self._ticks_left is not None and self._ticks_right is not None:
+                    left_motor_tick = self._ticks_left
+                    right_motor_tick = self._ticks_right
+
+                    if switch_var:
+                        prev_left_motor_tick = left_motor_tick
+                        prev_right_motor_tick = right_motor_tick
+                        switch_var = False
+                    else:
+                        dNr = right_motor_tick - prev_right_motor_tick
+                        dNl = left_motor_tick - prev_left_motor_tick
+
+                        dr = wheel_circ * (dNr / Ntot)
+                        dl = wheel_circ * (dNl / Ntot)
+
+                        d = (dr + dl) / 2
+                        dtheta = (dr - dl) / axis_length
+
+                        midpoint_theta = position[2] + dtheta / 2.0
+                        new_x = position[0] + d * math.cos(midpoint_theta)
+                        new_y = position[1] + d * math.sin(midpoint_theta)
+                        final_theta = position[2] + dtheta
+
+                        position = (new_x, new_y, final_theta)
+                        self.position = position
+
+                        prev_left_motor_tick = left_motor_tick
+                        prev_right_motor_tick = right_motor_tick
+
+                # --- C. Communication ---
+                payload = {
+                    "sender": self._vehicle_name,
+                    "name": self._vehicle_name,
+                    "pose": position
+                }
+                try:
+                    message_fleet = String(data=json.dumps(payload))
+                    self.publisher.publish(message_fleet)
+                except Exception as e:
+                    rospy.logerr(f"JSON dump failed: {e}")
+
+                rate.sleep()
+
+        def go_around(self):
+            #TODO: find a way to make it to align y position with the goal pose so it will go straight to it  
+            ...
 
 if __name__ == '__main__':
     node = TwistControlNode(node_name='twist_control_node')
-    node.chicken_race()
+    node.avoid_control()
     rospy.spin()
-
