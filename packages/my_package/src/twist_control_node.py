@@ -36,6 +36,7 @@ class TwistControlNode(DTROS):
         self._v      = VELOCITY
         self._omega = OMEGA
         self.position = None 
+
         self.goal_pose = None
         self._publisher = rospy.Publisher(twist_topic, Twist2DStamped, queue_size=1)
         self._vehicle_name = os.environ['VEHICLE_NAME']
@@ -237,37 +238,48 @@ class TwistControlNode(DTROS):
                 dx_opp = opp_pose[0] - position[0]
                 dy_opp = opp_pose[1] - position[1]
                 dist_opp = math.sqrt(dx_opp**2 + dy_opp**2)
-                angle_to_opp = math.atan2(dy_opp, dx_opp)
 
                 dx_g = self.goal_pose[0] - position[0]
                 dy_g = self.goal_pose[1] - position[1]
                 dist_goal = math.sqrt(dx_g**2 + dy_g**2)
 
-                avoid_radius = 0.5
+                avoid_radius = 0.6
 
-                # --- CONTROL LOGIC ---
+                # --- NEW VECTOR-BASED CONTROL LOGIC ---
                 if dist_goal < 0.05:
                     # Arrived at goal
                     self._v = 0.0
                     self._omega = 0.0
-                    self.theta_error_integral = 0.0  # Reset integral
-                elif dist_opp < 0.25:
-                    # Emergency stop / back up
-                    self._v = -0.1
-                    desired_theta = position[2]
-                elif dist_opp < avoid_radius:
-                    # Avoidance mode
-                    self._v = 0.3
-                    cross_prod = dx_opp * dy_g - dy_opp * dx_g
-                    if cross_prod > 0:
-                        desired_theta = angle_to_opp + math.pi / 2
-                    else:
-                        desired_theta = angle_to_opp - math.pi / 2
+                    desired_theta = position[2] # Stay at current heading
+                    self.theta_error_integral = 0.0
                 else:
-                    # Normal goal seeking
-                    speed_factor = min(dist_goal, 0.3) / 0.3
-                    self._v = max(0.5 * speed_factor, 0.15)
-                    desired_theta = math.atan2(dy_g, dx_g)
+                    # 1. Goal Vector (Unit vector pointing to goal)
+                    v_goal_x = dx_g / dist_goal
+                    v_goal_y = dy_g / dist_goal
+
+                    # 2. Avoidance Vector (Direction AWAY from opponent)
+                    if dist_opp < avoid_radius:
+                        # Unit vector pointing away from opponent
+                        v_avoid_x = -dx_opp / dist_opp
+                        v_avoid_y = -dy_opp / dist_opp
+                        
+                        # Weight increases quadratically as we get closer
+                        weight = ((avoid_radius - dist_opp) / avoid_radius) ** 2
+                    else:
+                        v_avoid_x, v_avoid_y = 0, 0
+                        weight = 0
+
+                    # 3. Resultant Vector (The blended path)
+                    # The 2.5 multiplier determines how "scared" the robot is of the opponent
+                    final_x = v_goal_x + (v_avoid_x * weight * 2.5)
+                    final_y = v_goal_y + (v_avoid_y * weight * 2.5)
+
+                    desired_theta = math.atan2(final_y, final_x)
+                    
+                    # 4. Set Velocity 
+                    # Slow down slightly when dodging to improve steering accuracy
+                    base_speed = 0.3
+                    self._v = base_speed * (1.0 - (weight * 0.5))
 
                 # --- PI-controller for steering ---
                 if self._v != 0:
@@ -279,7 +291,7 @@ class TwistControlNode(DTROS):
                     self.theta_error_integral += theta_error * dt
 
                     # PI control
-                    self._omega = 7.0 * theta_error + 0.5 * self.theta_error_integral
+                    self._omega = 7.0 * theta_error + 0.3 * self.theta_error_integral
                     self._omega = max(min(self._omega, 4.0), -4.0)
                 else:
                     self._omega = 0.0

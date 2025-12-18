@@ -11,7 +11,8 @@ import math
 duck1_group = DTCommunicationGroup('duck1_group', String)
 duck2_group = DTCommunicationGroup('duck2_group', String)
 duck4_group = DTCommunicationGroup('duck4_group', String)
-
+bias_y = 0.5 #compensate for drift
+bias_x = 0.35
 FLEET = ["duck1", "duck2", "duck4"]
 INIT_POSE = {
     "duck1": [0,0,0],
@@ -19,8 +20,8 @@ INIT_POSE = {
     "duck4": [3,0,math.pi]
 }
 GOAL_POSE = {
-    "duck1": [3,0,0],
-    "duck2": [0,0,math.pi],
+    "duck1": [3+bias_x,bias_y,math.pi],
+    "duck2": [-bias_x,bias_y,0],
     "duck4": [0,0,math.pi]
 }
 

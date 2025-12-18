@@ -48,7 +48,7 @@ docker stop ![running_container]
   ```bash
   logout
   ```
-
+You do not have to be on a Linux computer to do this. Just be on the same network as the bots and run the commands in e.g Windows PowerShell
 
 ## Fleet discover
 You need to be on the same network for this to work and if you are on a hotspot have it running before the bots are started. 
