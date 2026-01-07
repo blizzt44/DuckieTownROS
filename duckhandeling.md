@@ -5,17 +5,17 @@ This guide aims to explain the handeling of the duckiebots.
 
 In terminal:
 
-1. 
+1. Change dir to DuckieTown workspace
 ```bash
 cd DuckieTownROS 
 ```
 
-2.
+2. Builds the code on the duckiebot named ![duck_name]
   ```bash
 dts devel build -f -H ![duck_name]
   ```
 
-3.
+3. Runs the launch script named ![launchfile] on ![duck_name]
   ```bash 
 dts devel run -H ![duck_name] -L ![launchfile]
   ```
@@ -99,3 +99,25 @@ We don't know if this guide is accurate but this is what we found that the light
 
 There is more color and when you think you know what it means add it to the list.  
  
+
+ ## Common Errors 
+Here is some common errors we encountered during our time with the duckiebots
+ ### Build Error
+ If it has major red errors in the terminal when you build try to restart the bot with 
+ ```bash
+ dts duckiebot reboot ![duck_name]
+ ```
+ ### Connectivity Error 
+ If the bots won't connect to wifi, check the wifi name on the bots to see if the name and password is the same as the connected WIFI. 
+
+ ### One of the bot is not consistent when testing 
+ Rebuild and try again
+
+
+ ## Current configuration 
+
+ **duck1**: Running bot
+
+ **duck2**: Watchtower
+ 
+ **duck3**: Running bot

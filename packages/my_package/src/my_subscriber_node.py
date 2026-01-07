@@ -9,19 +9,19 @@ import json
 import math
 
 duck1_group = DTCommunicationGroup('duck1_group', String)
-duck2_group = DTCommunicationGroup('duck2_group', String)
+duck3_group = DTCommunicationGroup('duck3_group', String)
 duck4_group = DTCommunicationGroup('duck4_group', String)
-bias_y = 0.5 #compensate for drift
+bias_y = 0.3 #compensate for drift (cumulative bias)
 bias_x = 0.35
-FLEET = ["duck1", "duck2", "duck4"]
+FLEET = ["duck1", "duck3", "duck4"]
 INIT_POSE = {
     "duck1": [0,0,0],
-    "duck2": [3,0,math.pi],
+    "duck3": [3,0,math.pi],
     "duck4": [3,0,math.pi]
 }
 GOAL_POSE = {
     "duck1": [3+bias_x,bias_y,math.pi],
-    "duck2": [-bias_x,bias_y,0],
+    "duck3": [-bias_x,bias_y,0],
     "duck4": [0,0,math.pi]
 }
 
@@ -34,12 +34,12 @@ class WatchtowerNode(DTROS):
 
         # Subscribers
         self.sub1 = duck1_group.Subscriber(self.callback)
-        self.sub2 = duck2_group.Subscriber(self.callback)
+        self.sub2 = duck3_group.Subscriber(self.callback)
         self.sub4 = duck4_group.Subscriber(self.callback)
 
         # Publishers
         self.pub1 = duck1_group.Publisher()
-        self.pub2 = duck2_group.Publisher()
+        self.pub2 = duck3_group.Publisher()
         self.pub4 = duck4_group.Publisher()
 
         # Store live fleet pose
@@ -64,8 +64,9 @@ class WatchtowerNode(DTROS):
 
         while not rospy.is_shutdown():
 
-            # --- 1. Broadcast Info to Robots (Running at 10Hz) ---
-            for bot, pub in [("duck1", self.pub1), ("duck2", self.pub2), ("duck4", self.pub4)]:
+            # --- BROADCAST INFO TO ROBOTS ---
+            for bot, pub in [("duck1", self.pub1), ("duck3", self.pub2), ("duck4", self.pub4)]:
+                # Running at 10Hz
                 payload = {
                     "sender": self._vehicle_name,
                     "fleet_pose": self.fleet_pose
@@ -77,8 +78,8 @@ class WatchtowerNode(DTROS):
 
             sent_init = True
 
-            # --- 2. Logging (Running at 1Hz) ---
-            # Only print every 10th tick (approx once per second)
+            # --- LOGGING ---
+            # Running at 1Hz for readability
             if tick_counter % 10 == 0:
                 self.log_status()
             
